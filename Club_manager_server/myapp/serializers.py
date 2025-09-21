@@ -57,17 +57,22 @@ class ClubSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
-        # handle secretaries separately to check existing count
-        secretaries = validated_data.pop('secretaries', None)
+    # handle secretaries separately
+        new_secretaries = validated_data.pop('secretaries', None)
         instance = super().update(instance, validated_data)
 
-        if secretaries is not None:
-            if (instance.secretaries.count() + len(secretaries)) > 2:
+        if new_secretaries is not None:
+            # check combined count (existing + new)
+            total_secretaries = instance.secretaries.count() + len(new_secretaries)
+            if total_secretaries > 2:
                 raise serializers.ValidationError(
                     {"secretaries": "A club cannot have more than 2 secretaries."}
                 )
-            instance.secretaries.set(secretaries)
+            # ✅ add instead of overwrite
+            instance.secretaries.add(*new_secretaries)
+
         return instance
+
 
     def create(self, validated_data):
         secretaries = validated_data.pop('secretaries', [])
@@ -97,8 +102,39 @@ class MembershipSerializer(serializers.ModelSerializer):
         model = Membership
         fields = '__all__'
         
+    def validate(self, data):
+        user = data.get('user')
+        club = data.get('club')
+        role = data.get('role')
+
+        if Membership.objects.filter(user=user, club=club).exists():
+            raise serializers.ValidationError("This user is already a member of the club.")
+
+        if role == 'secretary':
+            current_secretaries = Membership.objects.filter(club=club, role='secretary').count()
+            if current_secretaries >= 2:
+                raise serializers.ValidationError("This club already has 2 secretaries.")
+            
+        valid_roles = [choice[0] for choice in Membership.ROLES]
+        if role not in valid_roles:
+            raise serializers.ValidationError(f"Invalid role specified. Must be one of {valid_roles}.")
+
+        return data
+        
         
 class PendingRequestSerializer(serializers.ModelSerializer): 
     class Meta:
         model = PendingRequest
         fields = '__all__'
+        
+    def validate(self, data):
+        user = data.get('user')
+        club = data.get('club')
+
+        if PendingRequest.objects.filter(user=user, club=club).exists():
+            raise serializers.ValidationError("This user already has a pending request for this club.")
+
+        if Membership.objects.filter(user=user, club=club).exists():
+            raise serializers.ValidationError("This user is already a member of the club.")
+
+        return data

@@ -15,7 +15,6 @@ class CustomUser(AbstractUser):
     def __str__(self):
         return self.username
     
-    
 class Club(models.Model):
     name = models.CharField(max_length=25)
     discription = models.TextField(max_length=250)
@@ -29,8 +28,7 @@ class Club(models.Model):
 
     def __str__(self):
         return self.name
-    
-    
+
 class Membership(models.Model):
     ROLES = [
         ('member', 'Member'),
@@ -39,11 +37,12 @@ class Membership(models.Model):
     ]
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     club = models.ForeignKey(Club, on_delete=models.CASCADE)
-    data_joined = models.DateField(auto_now_add=True)
+    date_joined = models.DateField(auto_now_add=True)
     role = models.CharField(ROLES, default='member', max_length=20)
     
-    
-    
+    class Meta:
+        unique_together = ('user', 'club')
+        
 class Event(models.Model):
     title = models.CharField(max_length=100)
     description = models.TextField(max_length=1000)
@@ -69,10 +68,8 @@ class Announcement(models.Model):
     
     def __str__(self):
         return self.title
-    
 
 class PendingRequest(models.Model):
-    
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE) 
     club = models.ForeignKey(Club, on_delete=models.CASCADE)
     requested_at = models.DateTimeField(auto_now_add=True)
