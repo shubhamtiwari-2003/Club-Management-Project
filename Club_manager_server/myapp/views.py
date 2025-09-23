@@ -7,8 +7,9 @@ from .serializers import UserSerializer, ClubSerializer, EventSerializer, Member
 from rest_framework.authtoken.models import Token
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.contrib.auth import authenticate
 from .custom_permission import ClubPermission
+from django.contrib.auth import get_user_model
+
 
 
 # Create your views here.
@@ -41,22 +42,33 @@ class RegisterView(APIView):
                 "message": "User created successfully",
                 "token": token.key
             }, status=status.HTTP_201_CREATED)
-      
-# handles user login and Token generation or fetching existing token
+
+
+User = get_user_model()
+
 class LoginView(APIView):
     permission_classes = [AllowAny]
+
     def post(self, request):
-        username = request.data.get('username')
+        email = request.data.get('email')
         password = request.data.get('password')
 
-        user = authenticate(username=username, password=password)
+        try:
+            # get user by email
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"error": "Invalid email or password"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        if user is not None:
-            token,_ = Token.objects.get_or_create(user=user)
-            
-            return Response({"messsage":"Valid User!","token": token.key}, status=status.HTTP_200_OK)
+        # now check password
+        if user.check_password(password):
+            token, _ = Token.objects.get_or_create(user=user)
+            return Response(
+                {"message": "Valid User!", "token": token.key},
+                status=status.HTTP_200_OK
+            )
         else:
-            return Response({"error": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"error": "Invalid email or password"}, status=status.HTTP_401_UNAUTHORIZED)
+
 
 # handles user logout by deleting the token
 class LogoutView(APIView):
